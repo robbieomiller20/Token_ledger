@@ -1,0 +1,21 @@
+{
+  "name": "token-ledger",
+  "productName": "Token Ledger",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Token Ledger, an Electron dashboard for ccusage.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create-shortcut.ps1",
+    "check": "node --check main.js && node --check preload.js && node --check src/main/ccusage.js && node --check src/main/rate-limits.js && node --check src/main/session-tracker.js && node --check src/main/xlsx-export.js && node --check src/renderer/app.js",
+    "test:session-tracker": "node scripts/test-session-tracker.js"
+  },
+  "dependencies": {
+    "chart.js": "4.5.1"
+  },
+  "devDependencies": {
+    "electron": "42.4.1"
+  }
+}

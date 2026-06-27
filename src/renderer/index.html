@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self';"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Token Ledger</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 34 34" role="img">
+              <path d="M8 9.5 17 4l9 5.5v15L17 30l-9-5.5z"></path>
+              <path d="m12.5 13 4.5-2.6 4.5 2.6v8L17 23.6 12.5 21z"></path>
+            </svg>
+          </div>
+          <div>
+            <p class="eyebrow">LOCAL USAGE INTELLIGENCE</p>
+            <h1>Token Ledger</h1>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <div class="refresh-copy">
+            <span id="refreshStatus">Waiting for usage data</span>
+            <small id="refreshCountdown">Auto-refresh every 5 minutes</small>
+          </div>
+          <button id="refreshButton" class="refresh-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5"></path>
+            </svg>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </header>
+
+      <section id="errorBanner" class="error-banner" hidden>
+        <span id="errorMessage"></span>
+        <button id="dismissError" type="button" aria-label="Dismiss error">×</button>
+      </section>
+
+      <section class="quota-section" aria-labelledby="quotaHeading">
+        <div class="quota-section-heading">
+          <div>
+            <p class="eyebrow">LIVE PLAN LIMITS</p>
+            <h2 id="quotaHeading">Claude and GPT usage</h2>
+          </div>
+          <span class="quota-source">5-hour and weekly windows</span>
+        </div>
+        <div id="quotaGrid" class="quota-grid">
+          <article class="quota-card is-loading">
+            <div class="quota-loading-line"></div>
+            <div class="quota-loading-meter"></div>
+            <div class="quota-loading-meter"></div>
+          </article>
+          <article class="quota-card is-loading">
+            <div class="quota-loading-line"></div>
+            <div class="quota-loading-meter"></div>
+            <div class="quota-loading-meter"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="summary-grid">
+        <article class="summary-card">
+          <div class="summary-icon cost-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2v20M17 6.5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+            </svg>
+          </div>
+          <div>
+            <p>Cost at API Prices</p>
+            <strong id="totalCost">—</strong>
+            <small id="costContext">Across all recorded days</small>
+          </div>
+        </article>
+
+        <article class="summary-card">
+          <div class="summary-icon token-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m12 2 9 5-9 5-9-5 9-5Z"></path>
+              <path d="m3 12 9 5 9-5M3 17l9 5 9-5"></path>
+            </svg>
+          </div>
+          <div>
+            <p>Total tokens</p>
+            <strong id="totalTokens">—</strong>
+            <small id="tokenContext">Input, output, and cache</small>
+          </div>
+        </article>
+
+        <article class="summary-card">
+          <div class="summary-icon day-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 3v3M19 3v3M3 9h18M5 5h14a2 2 0 0 1 2 2v14H3V7a2 2 0 0 1 2-2Z"></path>
+              <path d="M8 13h3v3H8z"></path>
+            </svg>
+          </div>
+          <div>
+            <p>Average active day</p>
+            <strong id="dailyAverage">—</strong>
+            <small id="activeDays">No active days yet</small>
+          </div>
+        </article>
+
+        <article id="balanceCard" class="balance-card">
+          <div class="balance-copy">
+            <div class="balance-heading">
+              <span>Money Saved</span>
+              <span id="balanceBadge" class="balance-badge">—</span>
+            </div>
+            <strong id="balanceAmount">—</strong>
+            <p id="balanceFormula">$40 per month since May 2026</p>
+            <small id="balanceDetail">Comparing all-agent cost to your allowance</small>
+          </div>
+          <div id="balanceGauge" class="balance-gauge" style="--gauge: 0deg">
+            <div class="gauge-center">
+              <span id="gaugePercent">0%</span>
+              <small>used</small>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="chart-card">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">DAILY TREND</p>
+            <h2 id="chartTitle">Estimated cost by day</h2>
+          </div>
+          <div class="chart-summary">
+            <span id="chartAgent">All agents</span>
+            <strong id="chartTotal">—</strong>
+          </div>
+        </div>
+        <section class="controls-card chart-controls">
+          <div class="control-group">
+            <label for="agentSelect">Agent</label>
+            <div class="select-wrap">
+              <select id="agentSelect" aria-label="Filter by agent">
+                <option value="all">All agents</option>
+              </select>
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="m6 8 4 4 4-4"></path>
+              </svg>
+            </div>
+          </div>
+
+          <div class="control-divider"></div>
+
+          <div class="control-group metric-group">
+            <label for="metricSelect">Graph metric</label>
+            <div class="select-wrap metric-select-wrap">
+              <select id="metricSelect" aria-label="Graph metric">
+                <option value="inputTokens">Input</option>
+                <option value="outputTokens">Output</option>
+                <option value="totalTokens">Total tokens</option>
+                <option value="costUSD" selected>Cost USD</option>
+              </select>
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="m6 8 4 4 4-4"></path>
+              </svg>
+            </div>
+          </div>
+
+          <div class="control-divider"></div>
+
+          <div class="control-group period-group">
+            <span class="control-label">Group by</span>
+            <div id="periodPicker" class="metric-picker period-picker" role="group" aria-label="Chart grouping">
+              <button class="active" type="button" data-period="day">Day</button>
+              <button type="button" data-period="week">Week</button>
+              <button type="button" data-period="month">Month</button>
+            </div>
+          </div>
+
+          <div class="control-divider"></div>
+
+          <div class="control-group date-range-group">
+            <span class="control-label">Date range</span>
+            <div class="date-range-fields">
+              <label class="date-field" for="chartStartDate">
+                <span>From</span>
+                <input id="chartStartDate" type="date" />
+              </label>
+              <label class="date-field" for="chartEndDate">
+                <span>To</span>
+                <input id="chartEndDate" type="date" />
+              </label>
+              <button id="chartRangeClear" class="date-reset-button" type="button">Clear</button>
+            </div>
+          </div>
+        </section>
+        <div class="chart-wrap">
+          <canvas id="usageChart"></canvas>
+          <div id="emptyChart" class="empty-state" hidden>
+            No daily usage was found for this agent.
+          </div>
+        </div>
+      </section>
+
+      <section class="table-card">
+        <div class="section-heading table-heading">
+          <div>
+            <p class="eyebrow">USAGE LOG</p>
+            <h2>Daily breakdown</h2>
+          </div>
+          <span id="rowCount" class="row-count">0 days</span>
+        </div>
+
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Agent</th>
+                <th>Models</th>
+                <th class="number-cell">Input</th>
+                <th class="number-cell">Output</th>
+                <th class="number-cell">Cache write</th>
+                <th class="number-cell">Cache read</th>
+                <th class="number-cell">Total tokens</th>
+                <th class="number-cell">Est. cost</th>
+              </tr>
+            </thead>
+            <tbody id="usageRows">
+              <tr class="loading-row">
+                <td colspan="9">
+                  <div class="loading-dots"><i></i><i></i><i></i></div>
+                  Reading local ccusage data…
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="session-card">
+        <div class="section-heading session-heading">
+          <div>
+            <p class="eyebrow">COMPLETED WINDOWS</p>
+            <h2>Five-hour session ledger</h2>
+          </div>
+          <div class="session-actions">
+            <div class="tracking-status">
+              <span id="trackingStatus">Waiting for first sample</span>
+              <small id="trackingNextCheck">Tracking runs while Token Ledger is open</small>
+            </div>
+            <label class="interval-control" for="trackingInterval">
+              <span>Check every</span>
+              <select id="trackingInterval" aria-label="Session tracking interval">
+                <option value="5">5 min</option>
+                <option value="10" selected>10 min</option>
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+                <option value="60">60 min</option>
+              </select>
+            </label>
+            <button id="openSessionCsv" class="secondary-button" type="button">
+              Open CSV
+            </button>
+            <button id="exportFiveHourXlsx" class="secondary-button" type="button">
+              Export XLSX
+            </button>
+          </div>
+        </div>
+
+        <div id="activeSessionSummary" class="active-session-summary">
+          Session tracking begins with the next usage refresh.
+        </div>
+
+        <div class="table-scroll session-table-scroll">
+          <table class="session-table">
+            <thead>
+              <tr>
+                <th>Date / session</th>
+                <th>Provider</th>
+                <th>Window</th>
+                <th>Closing stamp</th>
+                <th class="number-cell">5h used</th>
+                <th class="number-cell">7d added</th>
+                <th class="number-cell">Input</th>
+                <th class="number-cell">Output</th>
+                <th class="number-cell">Cache write</th>
+                <th class="number-cell">Cache read</th>
+                <th class="number-cell">Total tokens</th>
+                <th class="number-cell">Est. cost</th>
+              </tr>
+            </thead>
+            <tbody id="sessionRows">
+              <tr class="empty-row">
+                <td colspan="12">No completed five-hour sessions yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="session-card weekly-session-card">
+        <div class="section-heading session-heading">
+          <div>
+            <p class="eyebrow">COMPLETED WEEKLY WINDOWS</p>
+            <h2>Seven-day session ledger</h2>
+          </div>
+          <div class="session-actions">
+            <div class="tracking-status">
+              <span>Same tracking interval</span>
+              <small>Boundary stamps are captured before known 7-day resets</small>
+            </div>
+            <button id="exportWeeklyXlsx" class="secondary-button" type="button">
+              Export XLSX
+            </button>
+          </div>
+        </div>
+
+        <div id="activeWeeklySessionSummary" class="active-session-summary">
+          Weekly tracking begins with the next usage refresh.
+        </div>
+
+        <div class="table-scroll session-table-scroll">
+          <table class="session-table weekly-session-table">
+            <thead>
+              <tr>
+                <th>Date / window</th>
+                <th>Provider</th>
+                <th>Window</th>
+                <th>Closing stamp</th>
+                <th class="number-cell">7d start</th>
+                <th class="number-cell">7d end</th>
+                <th class="number-cell">7d used</th>
+                <th class="number-cell">Input</th>
+                <th class="number-cell">Output</th>
+                <th class="number-cell">Cache write</th>
+                <th class="number-cell">Cache read</th>
+                <th class="number-cell">Total tokens</th>
+                <th class="number-cell">Est. cost</th>
+              </tr>
+            </thead>
+            <tbody id="weeklySessionRows">
+              <tr class="empty-row">
+                <td colspan="13">No completed seven-day sessions yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer>
+        <span id="sourceCommand">npx ccusage@latest daily --breakdown --json</span>
+        <span>Costs are estimates reported by ccusage.</span>
+      </footer>
+    </main>
+
+    <script src="../../node_modules/chart.js/dist/chart.umd.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
