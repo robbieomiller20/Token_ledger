@@ -10,8 +10,6 @@ const state = {
   expandedRows: new Set(),
 };
 
-const THEME_STORAGE_KEY = "token-ledger-theme";
-
 // Chart colors are read from CSS custom properties so they follow the theme.
 const metricConfig = {
   inputTokens: {
@@ -1215,12 +1213,10 @@ function redrawChart() {
 elements.themeToggle.addEventListener("click", () => {
   const theme = currentTheme() === "dark" ? "light" : "dark";
   applyTheme(theme);
-  try {
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
-  } catch {
-    // The choice still applies for this session without storage.
-  }
   redrawChart();
+  window.tokenLedgerTheme.save(theme).catch((error) => {
+    showError(error.message || "Could not save the theme choice.");
+  });
 });
 
 elements.agentSelect.addEventListener("change", (event) => {

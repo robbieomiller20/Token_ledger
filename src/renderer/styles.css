@@ -322,12 +322,13 @@ h2 {
     background 160ms ease;
 }
 
-.theme-toggle[aria-checked="true"] .theme-switch {
+/* Keyed to the theme, not aria-checked, so the switch is right from first paint. */
+:root[data-theme="dark"] .theme-switch {
   border-color: rgba(94, 224, 179, 0.4);
   background: var(--mint-soft);
 }
 
-.theme-toggle[aria-checked="true"] .theme-switch i {
+:root[data-theme="dark"] .theme-switch i {
   background: var(--mint);
   transform: translateX(14px);
 }
@@ -1591,8 +1592,7 @@ footer {
   background: rgba(11, 133, 96, 0.15);
 }
 
-:where(:root[data-theme="light"]) .theme-toggle:hover,
-:where(:root[data-theme="light"]) .theme-toggle[aria-checked="true"] .theme-switch {
+:where(:root[data-theme="light"]) .theme-toggle:hover {
   border-color: rgba(11, 133, 96, 0.4);
 }
 
