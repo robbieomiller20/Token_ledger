@@ -6,6 +6,11 @@ function subscribe(channel, callback) {
   return () => ipcRenderer.removeListener(channel, listener);
 }
 
+contextBridge.exposeInMainWorld("tokenLedgerTheme", {
+  initial: ipcRenderer.sendSync("theme:get"),
+  save: (theme) => ipcRenderer.invoke("theme:set", theme),
+});
+
 contextBridge.exposeInMainWorld("ccusage", {
   getSnapshot: () => ipcRenderer.invoke("usage:get"),
   refresh: () => ipcRenderer.invoke("usage:refresh"),

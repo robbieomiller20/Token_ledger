@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta
@@ -9,6 +9,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Token Ledger</title>
     <link rel="stylesheet" href="./styles.css" />
+    <script src="./theme.js"></script>
   </head>
   <body>
     <div class="ambient ambient-one"></div>
@@ -34,6 +35,17 @@
             <span id="refreshStatus">Waiting for usage data</span>
             <small id="refreshCountdown">Auto-refresh every 5 minutes</small>
           </div>
+          <button
+            id="themeToggle"
+            class="theme-toggle"
+            type="button"
+            role="switch"
+            aria-checked="true"
+            title="Switch between light and dark mode"
+          >
+            <span class="theme-toggle-label">Dark mode</span>
+            <span class="theme-switch" aria-hidden="true"><i></i></span>
+          </button>
           <button id="refreshButton" class="refresh-button" type="button">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5"></path>

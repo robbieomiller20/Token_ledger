@@ -10,33 +10,30 @@ const state = {
   expandedRows: new Set(),
 };
 
+// Chart colors are read from CSS custom properties so they follow the theme.
 const metricConfig = {
   inputTokens: {
     label: "Input tokens",
     shortLabel: "Input",
-    color: "#7aa7ff",
-    fill: "rgba(122, 167, 255, 0.13)",
+    colorVar: "--blue",
     format: formatTokens,
   },
   outputTokens: {
     label: "Output tokens",
     shortLabel: "Output",
-    color: "#f6bd60",
-    fill: "rgba(246, 189, 96, 0.13)",
+    colorVar: "--amber",
     format: formatTokens,
   },
   totalTokens: {
     label: "Total tokens",
     shortLabel: "Total tokens",
-    color: "#5ee0b3",
-    fill: "rgba(94, 224, 179, 0.13)",
+    colorVar: "--mint",
     format: formatTokens,
   },
   costUSD: {
     label: "Estimated cost",
     shortLabel: "Cost",
-    color: "#5ee0b3",
-    fill: "rgba(94, 224, 179, 0.13)",
+    colorVar: "--mint",
     format: formatCurrency,
   },
 };
@@ -69,6 +66,7 @@ const elements = {
   chartStartDate: document.querySelector("#chartStartDate"),
   chartEndDate: document.querySelector("#chartEndDate"),
   chartRangeClear: document.querySelector("#chartRangeClear"),
+  themeToggle: document.querySelector("#themeToggle"),
   refreshButton: document.querySelector("#refreshButton"),
   refreshStatus: document.querySelector("#refreshStatus"),
   refreshCountdown: document.querySelector("#refreshCountdown"),
@@ -271,6 +269,28 @@ function formatExactReset(resetAt) {
     hour: "numeric",
     minute: "2-digit",
   }).format(resetDate);
+}
+
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function withAlpha(color, alpha) {
+  const match = /^#([0-9a-f]{6})$/i.exec(color);
+  if (!match) {
+    return color;
+  }
+  const value = parseInt(match[1], 16);
+  return `rgba(${value >> 16}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+}
+
+function currentTheme() {
+  return document.documentElement.dataset.theme === "light" ? "light" : "dark";
+}
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  elements.themeToggle.setAttribute("aria-checked", String(theme === "dark"));
 }
 
 function escapeHtml(value) {
@@ -682,7 +702,7 @@ function renderBalance() {
   elements.balanceGauge.style.setProperty("--gauge", `${ringPercent * 3.6}deg`);
   elements.balanceGauge.style.setProperty(
     "--gauge-color",
-    isPositive ? "#5ee0b3" : "#ff7c83",
+    isPositive ? "var(--mint)" : "var(--rose)",
   );
 }
 
@@ -894,6 +914,8 @@ function renderChart(report) {
     return;
   }
 
+  const lineColor = cssVar(config.colorVar);
+
   state.chart = new Chart(elements.chartCanvas, {
     type: "line",
     data: {
@@ -902,13 +924,13 @@ function renderChart(report) {
         {
           label: config.label,
           data: values,
-          borderColor: config.color,
-          backgroundColor: config.fill,
+          borderColor: lineColor,
+          backgroundColor: withAlpha(lineColor, 0.13),
           borderWidth: 2.2,
           pointRadius: rows.length > 45 ? 0 : 2.5,
           pointHoverRadius: 5,
-          pointBackgroundColor: "#0b0f14",
-          pointBorderColor: config.color,
+          pointBackgroundColor: cssVar("--chart-point-bg"),
+          pointBorderColor: lineColor,
           pointBorderWidth: 2,
           fill: true,
           tension: 0.3,
@@ -930,12 +952,12 @@ function renderChart(report) {
           display: false,
         },
         tooltip: {
-          backgroundColor: "#1b222c",
-          borderColor: "rgba(255,255,255,.1)",
+          backgroundColor: cssVar("--tooltip-bg"),
+          borderColor: cssVar("--tooltip-border"),
           borderWidth: 1,
           padding: 12,
-          titleColor: "#f2f4ef",
-          bodyColor: "#aeb7c0",
+          titleColor: cssVar("--tooltip-title"),
+          bodyColor: cssVar("--tooltip-body"),
           displayColors: false,
           callbacks: {
             label: (context) => `${config.label}: ${config.format(context.raw)}`,
@@ -948,7 +970,7 @@ function renderChart(report) {
             display: false,
           },
           ticks: {
-            color: "#65717e",
+            color: cssVar("--chart-tick"),
             font: {
               size: 10,
             },
@@ -956,20 +978,20 @@ function renderChart(report) {
             autoSkipPadding: 24,
           },
           border: {
-            color: "rgba(255,255,255,.07)",
+            color: cssVar("--chart-axis"),
           },
         },
         y: {
           beginAtZero: true,
           grid: {
-            color: "rgba(255,255,255,.055)",
+            color: cssVar("--chart-grid"),
             drawTicks: false,
           },
           border: {
             display: false,
           },
           ticks: {
-            color: "#65717e",
+            color: cssVar("--chart-tick"),
             padding: 10,
             font: {
               size: 10,
@@ -1190,6 +1212,15 @@ function redrawChart() {
   }
 }
 
+elements.themeToggle.addEventListener("click", () => {
+  const theme = currentTheme() === "dark" ? "light" : "dark";
+  applyTheme(theme);
+  redrawChart();
+  window.tokenLedgerTheme.save(theme).catch((error) => {
+    showError(error.message || "Could not save the theme choice.");
+  });
+});
+
 elements.agentSelect.addEventListener("change", (event) => {
   state.selectedAgent = event.target.value;
   render();
@@ -1348,6 +1379,7 @@ async function initialize() {
   }
 }
 
+applyTheme(currentTheme());
 setInterval(updateCountdown, 1000);
 updateCountdown();
 initialize();

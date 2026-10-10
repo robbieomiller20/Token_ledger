@@ -19,6 +19,43 @@
   --radius-lg: 22px;
   --radius-md: 16px;
   --shadow: 0 22px 65px rgba(0, 0, 0, 0.28);
+  --chart-tick: #65717e;
+  --chart-grid: rgba(255, 255, 255, 0.055);
+  --chart-axis: rgba(255, 255, 255, 0.07);
+  --chart-point-bg: #0b0f14;
+  --tooltip-bg: #1b222c;
+  --tooltip-border: rgba(255, 255, 255, 0.1);
+  --tooltip-title: #f2f4ef;
+  --tooltip-body: #aeb7c0;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f3f5f2;
+  --panel: rgba(255, 255, 255, 0.88);
+  --panel-solid: #ffffff;
+  --panel-soft: #f7f9f8;
+  --border: rgba(15, 23, 32, 0.09);
+  --border-strong: rgba(15, 23, 32, 0.16);
+  --text: #15202b;
+  --muted: #56626e;
+  --faint: #6b7682;
+  --mint: #0b8560;
+  --mint-soft: rgba(11, 133, 96, 0.1);
+  --amber: #a8650a;
+  --amber-soft: rgba(168, 101, 10, 0.11);
+  --rose: #c93a44;
+  --rose-soft: rgba(201, 58, 68, 0.1);
+  --blue: #2f62d0;
+  --shadow: 0 18px 50px rgba(30, 45, 60, 0.08);
+  --chart-tick: #6b7682;
+  --chart-grid: rgba(15, 23, 32, 0.07);
+  --chart-axis: rgba(15, 23, 32, 0.1);
+  --chart-point-bg: #ffffff;
+  --tooltip-bg: #ffffff;
+  --tooltip-border: rgba(15, 23, 32, 0.12);
+  --tooltip-title: #15202b;
+  --tooltip-body: #4b5864;
 }
 
 * {
@@ -229,6 +266,71 @@ h2 {
   to {
     transform: rotate(360deg);
   }
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px 9px 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.theme-toggle:hover {
+  border-color: rgba(94, 224, 179, 0.4);
+  color: var(--text);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--mint);
+  outline-offset: 2px;
+}
+
+.theme-switch {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: 99px;
+  background: var(--border);
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
+}
+
+.theme-switch i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition:
+    transform 160ms ease,
+    background 160ms ease;
+}
+
+/* Keyed to the theme, not aria-checked, so the switch is right from first paint. */
+:root[data-theme="dark"] .theme-switch {
+  border-color: rgba(94, 224, 179, 0.4);
+  background: var(--mint-soft);
+}
+
+:root[data-theme="dark"] .theme-switch i {
+  background: var(--mint);
+  transform: translateX(14px);
 }
 
 .error-banner {
@@ -1463,6 +1565,277 @@ footer {
   padding: 18px 3px 2px;
   color: #4f5b67;
   font-size: 10px;
+}
+
+/* Light theme: overrides for colors the dark design hard-codes. */
+
+:where(:root[data-theme="light"]) body {
+  background:
+    radial-gradient(circle at 8% 5%, rgba(71, 117, 111, 0.08), transparent 29rem),
+    radial-gradient(circle at 96% 1%, rgba(117, 85, 44, 0.07), transparent 31rem),
+    var(--bg);
+}
+
+:where(:root[data-theme="light"]) .ambient {
+  opacity: 0.07;
+}
+
+:where(:root[data-theme="light"]) .brand-mark {
+  border-color: rgba(11, 133, 96, 0.22);
+  background: linear-gradient(145deg, rgba(11, 133, 96, 0.12), rgba(11, 133, 96, 0.03));
+}
+
+:where(:root[data-theme="light"]) .refresh-copy span,
+:where(:root[data-theme="light"]) .tracking-status span {
+  color: #36424e;
+}
+
+:where(:root[data-theme="light"]) .refresh-button {
+  border-color: rgba(11, 133, 96, 0.28);
+  color: #0a6b4d;
+}
+
+:where(:root[data-theme="light"]) .refresh-button:hover {
+  border-color: rgba(11, 133, 96, 0.5);
+  background: rgba(11, 133, 96, 0.15);
+}
+
+:where(:root[data-theme="light"]) .theme-toggle:hover {
+  border-color: rgba(11, 133, 96, 0.4);
+}
+
+:where(:root[data-theme="light"]) .error-banner {
+  border-color: rgba(201, 58, 68, 0.26);
+  color: #9b2730;
+}
+
+:where(:root[data-theme="light"]) .quota-card,
+:where(:root[data-theme="light"]) .summary-card,
+:where(:root[data-theme="light"]) .balance-card {
+  background: linear-gradient(145deg, #ffffff, #f7f9f8);
+  box-shadow: 0 12px 32px rgba(30, 45, 60, 0.07);
+}
+
+:where(:root[data-theme="light"]) .quota-claude,
+:where(:root[data-theme="light"]) .provider-claude {
+  --quota-color: #c25a2c;
+  --quota-soft: rgba(194, 90, 44, 0.1);
+  --quota-glow: rgba(194, 90, 44, 0.16);
+  --provider-color: #c25a2c;
+}
+
+:where(:root[data-theme="light"]) .quota-codex,
+:where(:root[data-theme="light"]) .provider-codex {
+  --quota-color: #2f62d0;
+  --quota-soft: rgba(47, 98, 208, 0.1);
+  --quota-glow: rgba(47, 98, 208, 0.14);
+  --provider-color: #2f62d0;
+}
+
+:where(:root[data-theme="light"]) .quota-provider-identity strong,
+:where(:root[data-theme="light"]) .quota-window strong,
+:where(:root[data-theme="light"]) .active-session-chip strong,
+:where(:root[data-theme="light"]) .session-date-cell strong,
+:where(:root[data-theme="light"]) .session-window-cell strong,
+:where(:root[data-theme="light"]) .session-stamp-cell strong,
+:where(:root[data-theme="light"]) .session-percent,
+:where(:root[data-theme="light"]) .date-cell {
+  color: var(--text);
+}
+
+:where(:root[data-theme="light"]) .quota-meter i {
+  background: rgba(15, 23, 32, 0.08);
+  box-shadow: none;
+}
+
+:where(:root[data-theme="light"]) .quota-reset-relative {
+  color: var(--muted);
+}
+
+:where(:root[data-theme="light"]) .quota-card.has-error {
+  border-color: rgba(201, 58, 68, 0.2);
+}
+
+:where(:root[data-theme="light"]) .quota-error-copy {
+  background: rgba(201, 58, 68, 0.06);
+}
+
+:where(:root[data-theme="light"]) .quota-error-copy strong {
+  color: #a3303a;
+}
+
+:where(:root[data-theme="light"]) .quota-error-copy small {
+  color: #8a5a60;
+}
+
+:where(:root[data-theme="light"]) .quota-loading-line,
+:where(:root[data-theme="light"]) .quota-loading-meter {
+  background: linear-gradient(
+    90deg,
+    rgba(15, 23, 32, 0.05),
+    rgba(15, 23, 32, 0.1),
+    rgba(15, 23, 32, 0.05)
+  );
+  background-size: 200% 100%;
+}
+
+:where(:root[data-theme="light"]) .chart-controls {
+  border-color: rgba(15, 23, 32, 0.07);
+  background: #f7f9f8;
+  box-shadow: none;
+}
+
+:where(:root[data-theme="light"]) .select-wrap select,
+:where(:root[data-theme="light"]) .date-field input,
+:where(:root[data-theme="light"]) .date-reset-button,
+:where(:root[data-theme="light"]) .interval-control,
+:where(:root[data-theme="light"]) .secondary-button {
+  background: #ffffff;
+}
+
+:where(:root[data-theme="light"]) .select-wrap select:focus,
+:where(:root[data-theme="light"]) .date-field input:focus,
+:where(:root[data-theme="light"]) .date-reset-button:hover:not(:disabled),
+:where(:root[data-theme="light"]) .secondary-button:hover {
+  border-color: rgba(11, 133, 96, 0.45);
+}
+
+:where(:root[data-theme="light"]) .date-field input::-webkit-calendar-picker-indicator {
+  filter: none;
+  opacity: 0.6;
+}
+
+:where(:root[data-theme="light"]) .metric-picker {
+  background: #eaeeec;
+}
+
+:where(:root[data-theme="light"]) .metric-picker button:hover {
+  color: var(--text);
+}
+
+:where(:root[data-theme="light"]) .metric-picker button.active {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 32, 0.14);
+}
+
+:where(:root[data-theme="light"]) .day-icon {
+  background: rgba(47, 98, 208, 0.1);
+}
+
+:where(:root[data-theme="light"]) .balance-badge {
+  background: rgba(15, 23, 32, 0.06);
+}
+
+:where(:root[data-theme="light"]) .balance-card.is-deficit strong {
+  color: var(--rose);
+}
+
+:where(:root[data-theme="light"]) .balance-card.is-surplus strong {
+  color: var(--mint);
+}
+
+:where(:root[data-theme="light"]) .balance-card p {
+  color: #4b5864;
+}
+
+:where(:root[data-theme="light"]) .balance-gauge {
+  background: conic-gradient(
+    var(--gauge-color, var(--mint)) var(--gauge),
+    rgba(15, 23, 32, 0.08) 0
+  );
+  box-shadow: 0 0 24px rgba(11, 133, 96, 0.08);
+}
+
+:where(:root[data-theme="light"]) .balance-gauge::before {
+  background: #ffffff;
+}
+
+:where(:root[data-theme="light"]) .secondary-button {
+  color: #36424e;
+}
+
+:where(:root[data-theme="light"]) .secondary-button:hover {
+  color: var(--text);
+}
+
+:where(:root[data-theme="light"]) .active-session-chip {
+  background: #f7f9f8;
+}
+
+:where(:root[data-theme="light"]) .row-count {
+  background: rgba(15, 23, 32, 0.03);
+}
+
+:where(:root[data-theme="light"]) th {
+  background: #f3f5f4;
+  color: #66727e;
+}
+
+:where(:root[data-theme="light"]) td {
+  color: #34404c;
+}
+
+:where(:root[data-theme="light"]) tbody tr:hover {
+  background: rgba(15, 23, 32, 0.025);
+}
+
+:where(:root[data-theme="light"]) .usage-row.is-expandable:focus-visible {
+  outline-color: rgba(11, 133, 96, 0.6);
+}
+
+:where(:root[data-theme="light"]) .usage-row.is-expanded,
+:where(:root[data-theme="light"]) .model-breakdown-row > td {
+  background: rgba(11, 133, 96, 0.04);
+}
+
+:where(:root[data-theme="light"]) .row-chevron {
+  stroke: #8a96a1;
+}
+
+:where(:root[data-theme="light"]) .usage-row.is-expandable:hover .row-chevron,
+:where(:root[data-theme="light"]) .usage-row.is-expanded .row-chevron {
+  stroke: var(--mint);
+}
+
+:where(:root[data-theme="light"]) .agent-pill {
+  border-color: rgba(47, 98, 208, 0.16);
+  background: rgba(47, 98, 208, 0.08);
+  color: #2f5bbf;
+}
+
+:where(:root[data-theme="light"]) .model-tag {
+  background: rgba(15, 23, 32, 0.05);
+  color: #4b5864;
+}
+
+:where(:root[data-theme="light"]) .cost-cell {
+  color: #9a5b05;
+}
+
+:where(:root[data-theme="light"]) .model-breakdown-panel {
+  border-color: rgba(11, 133, 96, 0.16);
+  background: #fbfcfb;
+}
+
+:where(:root[data-theme="light"]) .model-breakdown-heading span,
+:where(:root[data-theme="light"]) .breakdown-model-name {
+  color: #34404c;
+}
+
+:where(:root[data-theme="light"]) .model-breakdown-table th {
+  background: rgba(15, 23, 32, 0.025);
+}
+
+:where(:root[data-theme="light"]) .model-breakdown-table td {
+  border-top-color: rgba(15, 23, 32, 0.06);
+}
+
+:where(:root[data-theme="light"]) .model-breakdown-table tbody tr:hover {
+  background: rgba(15, 23, 32, 0.02);
+}
+
+:where(:root[data-theme="light"]) footer {
+  color: #7d8893;
 }
 
 @media (max-width: 1260px) {
