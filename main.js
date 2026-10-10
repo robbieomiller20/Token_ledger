@@ -13,6 +13,8 @@ const SHUTDOWN_SAMPLE_TIMEOUT_MS = 15 * 1000;
 const ALLOWANCE_START = { year: 2026, monthIndex: 4 };
 const MONTHLY_ALLOWANCE_USD = 40;
 const APP_ICON_PATH = path.join(__dirname, "assets", "token-ledger.ico");
+// Matches --bg in styles.css so the window opens in the saved theme's color.
+const THEME_BACKGROUNDS = { dark: "#0b0f14", light: "#f3f5f2" };
 
 let mainWindow;
 let latestSnapshot = null;
@@ -23,6 +25,33 @@ let sessionTracker = null;
 let preResetTimers = new Map();
 let shutdownPromise = null;
 let allowQuit = false;
+let currentTheme = "dark";
+
+function getThemePath() {
+  return path.join(app.getPath("userData"), "theme.json");
+}
+
+async function loadTheme() {
+  try {
+    const { theme } = JSON.parse(await fs.readFile(getThemePath(), "utf8"));
+    return THEME_BACKGROUNDS[theme] ? theme : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+async function saveTheme(theme) {
+  if (!THEME_BACKGROUNDS[theme]) {
+    throw new Error(`Unknown theme: ${theme}`);
+  }
+  currentTheme = theme;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setBackgroundColor(THEME_BACKGROUNDS[theme]);
+  }
+  await fs.mkdir(path.dirname(getThemePath()), { recursive: true });
+  await fs.writeFile(getThemePath(), JSON.stringify({ theme }));
+  return theme;
+}
 
 function getScreenshotPath() {
   const argument = process.argv.find((value) => value.startsWith("--verify-capture="));
@@ -285,10 +314,11 @@ function createWindow() {
     height: 960,
     minWidth: 1040,
     minHeight: 720,
-    backgroundColor: "#0b0f14",
+    backgroundColor: THEME_BACKGROUNDS[currentTheme],
     title: "Token Ledger",
     icon: APP_ICON_PATH,
-    show: !isShutdownVerification(),
+    // Shown on ready-to-show so the first visible frame is the painted page.
+    show: false,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -296,6 +326,12 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
     },
+  });
+
+  mainWindow.once("ready-to-show", () => {
+    if (!isShutdownVerification()) {
+      mainWindow.show();
+    }
   });
 
   mainWindow.loadFile(path.join(__dirname, "src", "renderer", "index.html"));
@@ -327,7 +363,13 @@ app.whenReady().then(async () => {
     weeklyXlsxPath: path.join(__dirname, "data", "completed-seven-day-sessions.xlsx"),
   });
   await sessionTracker.init();
+  currentTheme = await loadTheme();
 
+  // Synchronous so the preload can apply the theme before the page first paints.
+  ipcMain.on("theme:get", (event) => {
+    event.returnValue = currentTheme;
+  });
+  ipcMain.handle("theme:set", (_event, theme) => saveTheme(theme));
   ipcMain.handle("usage:get", () => latestSnapshot);
   ipcMain.handle("usage:refresh", () => refreshUsage("manual"));
   ipcMain.handle("tracking:set-interval", async (_event, minutes) => {
