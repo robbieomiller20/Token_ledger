@@ -1,6 +1,6 @@
 Option Explicit
 
-Dim fileSystem, projectRoot, electronPath, shell
+Dim fileSystem, projectRoot, electronPath, shell, command
 
 Set fileSystem = CreateObject("Scripting.FileSystemObject")
 projectRoot = fileSystem.GetParentFolderName( _
@@ -14,5 +14,7 @@ If Not fileSystem.FileExists(electronPath) Then
   WScript.Quit 1
 End If
 
-Set shell = CreateObject("Shell.Application")
-shell.ShellExecute electronPath, ".", projectRoot, "open", 1
+Set shell = CreateObject("WScript.Shell")
+shell.CurrentDirectory = projectRoot
+command = """" & electronPath & """ ."
+shell.Run command, 1, False

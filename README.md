@@ -1,6 +1,6 @@
 # Token Ledger
 
-An Electron dashboard around `npx ccusage@latest` with:
+An Electron dashboard around `npx ccusage` with:
 
 - live Claude Code and Codex plan-limit meters;
 - daily cost and token charts;
@@ -27,12 +27,23 @@ npm run shortcut
 
 Re-run this command if you move the project folder.
 
-The app runs `npx --yes ccusage@latest daily --json` and the matching
+The app runs `npx --yes ccusage@20.0.20 daily --json` and the matching
 agent-specific daily commands. Node.js and `npx` must be available on `PATH`.
+The version is pinned because ccusage 20.0.21 fails outright on an empty
+Antigravity conversation database; see the `CCUSAGE_SPEC` comment in
+`src/main/ccusage.js` before bumping it.
 
-Live plan limits are read from the existing Claude Code and Codex sign-ins in
-`~/.claude/.credentials.json` and `~/.codex/auth.json`. Tokens stay in the
-Electron main process and are only sent to their provider's usage endpoint.
+Claude plan limits use the existing CLI sign-in in `~/.claude/.credentials.json`.
+No active terminal session or status-line setup is needed. Codex uses
+`~/.codex/auth.json`. Credentials remain in the main process.
+
+Claude polling is limited to once every five minutes, including manual refreshes.
+On HTTP 429, retries back off from five minutes up to one hour and respect longer
+`Retry-After` delays. The cooldown and last successful reading persist in
+`data/claude-polling.json`. Cached readings display their timestamp and next attempt,
+and are not recorded as fresh session checkpoints. Authentication failures clear the
+cached reading. The usage endpoint can still throttle requests; backoff does not
+guarantee availability.
 
 Five-hour and seven-day session tracking checks the live limits every 10 minutes
 by default while Token Ledger is open. Completed sessions are saved to

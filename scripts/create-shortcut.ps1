@@ -1,4 +1,5 @@
-# Creates one-click "Token Ledger" shortcuts on the Desktop and Start Menu.
+# Creates one-click "Token Ledger" shortcuts on the Desktop, Start Menu, and
+# Windows Startup folder.
 # The shortcuts use a Windows script host launcher, so no terminal window appears.
 # Re-run this script after moving the project folder to refresh the paths.
 
@@ -8,6 +9,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $electron = Join-Path $projectRoot 'node_modules\electron\dist\electron.exe'
 $icon = Join-Path $projectRoot 'assets\token-ledger.ico'
 $launcher = Join-Path $PSScriptRoot 'launch.vbs'
+$startupLauncher = Join-Path $PSScriptRoot 'startup-launcher.vbs'
 $wscript = Join-Path $env:SystemRoot 'System32\wscript.exe'
 
 if (-not (Test-Path -LiteralPath $electron)) {
@@ -25,28 +27,56 @@ if (-not (Test-Path -LiteralPath $launcher)) {
   exit 1
 }
 
+if (-not (Test-Path -LiteralPath $startupLauncher)) {
+  Write-Error "Startup launcher not found at:`n  $startupLauncher"
+  exit 1
+}
+
 $wshShell = New-Object -ComObject WScript.Shell
 $desktop = [Environment]::GetFolderPath('Desktop')
 if ([string]::IsNullOrWhiteSpace($desktop)) {
   $desktop = Join-Path $env:OneDrive 'Desktop'
 }
 $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+$startup = [Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)
+if ([string]::IsNullOrWhiteSpace($startup)) {
+  $startup = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup'
+}
 $appName = 'Token Ledger'
 $targets = @(
-  (Join-Path $desktop "$appName.lnk"),
-  (Join-Path $startMenu "$appName.lnk")
+  @{
+    Path = Join-Path $desktop "$appName.lnk"
+    Arguments = "`"$launcher`""
+    Description = 'View local Claude Code token usage and estimated costs'
+  },
+  @{
+    Path = Join-Path $startMenu "$appName.lnk"
+    Arguments = "`"$launcher`""
+    Description = 'View local Claude Code token usage and estimated costs'
+  },
+  @{
+    Path = Join-Path $startup "$appName.lnk"
+    Arguments = "`"$startupLauncher`" `"$projectRoot`" `"$appName`" 30000"
+    Description = 'Start Token Ledger automatically at Windows sign-in'
+  }
 )
 
-foreach ($shortcutPath in $targets) {
+foreach ($target in $targets) {
+  $shortcutPath = $target.Path
+  $shortcutFolder = Split-Path -Parent $shortcutPath
+  if (-not (Test-Path -LiteralPath $shortcutFolder)) {
+    New-Item -ItemType Directory -Path $shortcutFolder | Out-Null
+  }
+
   $shortcut = $wshShell.CreateShortcut($shortcutPath)
   $shortcut.TargetPath = $wscript
-  $shortcut.Arguments = "`"$launcher`""
+  $shortcut.Arguments = $target.Arguments
   $shortcut.WorkingDirectory = $projectRoot
   $shortcut.IconLocation = "$icon,0"
-  $shortcut.Description = 'View local Claude Code token usage and estimated costs'
+  $shortcut.Description = $target.Description
   $shortcut.WindowStyle = 1
   $shortcut.Save()
   Write-Host "Created: $shortcutPath"
 }
 
-Write-Host "`nDone. Launch '$appName' from your Desktop or Start Menu."
+Write-Host "`nDone. Launch '$appName' from your Desktop or Start Menu. It will also start at Windows sign-in."

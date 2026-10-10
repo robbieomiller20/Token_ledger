@@ -390,6 +390,14 @@ h2 {
   gap: 10px;
 }
 
+.quota-reading-note {
+  display: block;
+  margin-top: 10px;
+  color: var(--faint);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
 .quota-window {
   display: grid;
   grid-template-columns: 24px minmax(110px, 1fr) 43px minmax(160px, auto);

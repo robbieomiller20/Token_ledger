@@ -1130,6 +1130,10 @@ class SessionTracker {
       return;
     }
 
+    if (providerLimits.cached) {
+      providerState.lastError = providerLimits.notice || "Using cached usage";
+      return;
+    }
     providerState.lastError = null;
     const checkpointWindows = this.checkpointWindows(
       providerId,

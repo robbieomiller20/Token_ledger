@@ -224,7 +224,7 @@ function formatDateTime(value) {
 function formatTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "—";
+    return "â€”";
   }
   return new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
@@ -283,6 +283,7 @@ function escapeHtml(value) {
 }
 
 function renderQuotaMeter(window) {
+  if (!window) return `<div class="quota-error-copy">Usage window unavailable</div>`;
   const percentage = Math.min(100, Math.max(0, Number(window?.usedPercent) || 0));
   const filledSegments = Math.round(percentage / 10);
   const segments = Array.from(
@@ -300,7 +301,7 @@ function renderQuotaMeter(window) {
 
   return `
     <div class="quota-window">
-      <span class="quota-window-label">${escapeHtml(window?.label || "—")}</span>
+      <span class="quota-window-label">${escapeHtml(window?.label || "â€”")}</span>
       <div
         class="quota-meter"
         role="progressbar"
@@ -363,12 +364,13 @@ function renderQuotaProvider(provider) {
             <small>${escapeHtml(provider.detail)}</small>
           </div>
         </div>
-        <span class="quota-status is-live">Live</span>
+        <span class="quota-status ${provider.cached ? "" : "is-live"}">${provider.cached ? "Cached" : "Live"}</span>
       </div>
       <div class="quota-windows">
         ${renderQuotaMeter(provider.windows?.session)}
         ${renderQuotaMeter(provider.windows?.weekly)}
       </div>
+      ${provider.receivedAt ? `<small class="quota-reading-note">Last received ${escapeHtml(new Date(provider.receivedAt).toLocaleString())}${provider.cached ? ` · ${escapeHtml(provider.notice || "Cached reading")}${provider.retryAt ? ` · Next attempt ${escapeHtml(new Date(provider.retryAt).toLocaleString())}` : ""}` : ""}</small>` : ""}
     </article>
   `;
 }
@@ -403,7 +405,7 @@ function renderActiveSessions(tracking) {
         <div class="active-session-chip provider-${escapeHtml(session.provider)}">
           <span>${escapeHtml(providerLabel(session.provider))}</span>
           <strong>${Math.round(session.maxFiveHourPercent)}% peak</strong>
-          <small>${roundDisplay(session.sevenDayUsedPercent)}% of 7d added · ${session.sampleCount} ${session.sampleCount === 1 ? "sample" : "samples"}</small>
+          <small>${roundDisplay(session.sevenDayUsedPercent)}% of 7d added Â· ${session.sampleCount} ${session.sampleCount === 1 ? "sample" : "samples"}</small>
         </div>
       `,
     )
@@ -479,7 +481,7 @@ function renderSessionRows(tracking) {
             <span class="session-provider provider-${escapeHtml(session.provider)}">${escapeHtml(providerLabel(session.provider))}</span>
           </td>
           <td class="session-window-cell">
-            <strong>${escapeHtml(formatTime(session.startedAt))}–${escapeHtml(formatTime(session.completedAt))}</strong>
+            <strong>${escapeHtml(formatTime(session.startedAt))}â€“${escapeHtml(formatTime(session.completedAt))}</strong>
             <small title="${escapeHtml(formatDateTime(session.completedAt))}">Ended ${escapeHtml(formatDateTime(session.completedAt))}</small>
           </td>
           <td class="session-stamp-cell">
@@ -583,7 +585,7 @@ function updateTrackingCountdown() {
   const seconds = String(remainingSeconds % 60).padStart(2, "0");
   const preResetAt = new Date(tracking.nextPreResetSampleAt).getTime();
   const preResetCopy = Number.isFinite(preResetAt)
-    ? ` · boundary stamp ${formatDateTime(tracking.nextPreResetSampleAt)}`
+    ? ` Â· boundary stamp ${formatDateTime(tracking.nextPreResetSampleAt)}`
     : "";
   elements.trackingNextCheck.textContent = `Next sample in ${minutes}:${seconds}${preResetCopy}`;
 }
@@ -615,7 +617,7 @@ function setRefreshing(refreshing) {
     ? "Refreshing"
     : "Refresh";
   if (refreshing) {
-    elements.refreshStatus.textContent = "Reading ccusage data…";
+    elements.refreshStatus.textContent = "Reading ccusage dataâ€¦";
   }
 }
 
@@ -671,11 +673,11 @@ function renderBalance() {
   elements.balanceCard.classList.toggle("is-deficit", !isPositive);
   elements.balanceCard.classList.toggle("is-surplus", isPositive);
   elements.balanceBadge.textContent = isPositive ? "Positive" : "Negative";
-  elements.balanceAmount.textContent = `${isPositive ? "+" : "−"}${formatCurrency(
+  elements.balanceAmount.textContent = `${isPositive ? "+" : "âˆ’"}${formatCurrency(
     Math.abs(allowance.differenceUSD),
   )}`;
-  elements.balanceFormula.textContent = `${formatCurrency(totalCost)} cost − ${formatCurrency(allowance.allowanceUSD)} allowance`;
-  elements.balanceDetail.textContent = `${formatCurrency(allowance.monthlyAmountUSD)} × ${allowance.allowanceMonths} ${allowance.allowanceMonths === 1 ? "month" : "months"} since May 2026`;
+  elements.balanceFormula.textContent = `${formatCurrency(totalCost)} cost âˆ’ ${formatCurrency(allowance.allowanceUSD)} allowance`;
+  elements.balanceDetail.textContent = `${formatCurrency(allowance.monthlyAmountUSD)} Ã— ${allowance.allowanceMonths} ${allowance.allowanceMonths === 1 ? "month" : "months"} since May 2026`;
   elements.gaugePercent.textContent = `${Math.round(usagePercent)}%`;
   elements.balanceGauge.style.setProperty("--gauge", `${ringPercent * 3.6}deg`);
   elements.balanceGauge.style.setProperty(
@@ -1138,7 +1140,7 @@ function render() {
 
   const errors = [];
   if (state.snapshot.warnings?.length) {
-    errors.push(`Some agent data could not be loaded: ${state.snapshot.warnings.join(" · ")}`);
+    errors.push(`Some agent data could not be loaded: ${state.snapshot.warnings.join(" Â· ")}`);
   }
   if (state.snapshot.sessionTracking?.csvError) {
     errors.push(
@@ -1157,7 +1159,7 @@ function render() {
   }
 
   if (errors.length) {
-    showError(errors.join(" · "));
+    showError(errors.join(" Â· "));
   } else {
     hideError();
   }

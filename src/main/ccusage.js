@@ -1,7 +1,20 @@
 const { spawn } = require("node:child_process");
 
+const {
+  collectRecoveredRows,
+  mergeRecoveredRows,
+  probeCcusageDropsNullModel,
+} = require("./recovered-usage");
+
 const MAX_OUTPUT_BYTES = 20 * 1024 * 1024;
 const COMMAND_TIMEOUT_MS = 2 * 60 * 1000;
+
+// Pinned deliberately. ccusage 20.0.21 aborts the whole run with
+// `no such table: gen_metadata` when any .db in
+// ~/.gemini/antigravity/conversations/ has no tables, which an abandoned
+// Antigravity conversation leaves behind. 20.0.20 is the last good release, so
+// `@latest` is not safe to track until that regression is fixed upstream.
+const CCUSAGE_SPEC = "ccusage@20.0.20";
 
 function stripAnsi(value) {
   return value.replace(
@@ -23,9 +36,9 @@ function parseJsonOutput(stdout) {
   return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
 }
 
-function runCcusage(args) {
+function runCcusage(args, { env: extraEnv } = {}) {
   return new Promise((resolve, reject) => {
-    const npxArgs = ["--yes", "ccusage@latest", ...args, "--json", "--no-color"];
+    const npxArgs = ["--yes", CCUSAGE_SPEC, ...args, "--json", "--no-color"];
     const isWindows = process.platform === "win32";
     const executable = isWindows ? "cmd.exe" : "npx";
     const commandArgs = isWindows
@@ -40,6 +53,7 @@ function runCcusage(args) {
         env: {
           ...process.env,
           NO_COLOR: "1",
+          ...extraEnv,
         },
       },
     );
@@ -217,10 +231,55 @@ function discoverAgents(report) {
   return [...agents].sort();
 }
 
+// ccusage (through v20.0.20) cannot deserialize records whose
+// usage.iterations[] carries "model": null, and drops them silently - which
+// hides essentially all claude-fable-5-1 usage. We read those records
+// ourselves, but only while ccusage still has the bug: probe once per launch so
+// a fixed ccusage turns recovery off instead of double-counting.
+const recoveredFileCache = new Map();
+let dropsNullModelProbe = null;
+
+function ccusageDropsNullModel() {
+  if (!dropsNullModelProbe) {
+    dropsNullModelProbe = probeCcusageDropsNullModel({
+      // Scope the probe to the claude agent so other agents' reports cannot
+      // leak into it, and ask for the model breakdown it reads.
+      runReport: (configDir) =>
+        runCcusage(["claude", "daily", "--breakdown"], { env: { CLAUDE_CONFIG_DIR: configDir } }),
+    }).catch(() => null);
+  }
+  return dropsNullModelProbe;
+}
+
+async function recoverSkippedUsage(aggregate, agents, warnings) {
+  const dropsNullModel = await ccusageDropsNullModel();
+
+  if (dropsNullModel === null) {
+    warnings.push(
+      "Could not check whether ccusage still drops null-model records, so recovery was skipped; Fable usage may be understated.",
+    );
+    return aggregate;
+  }
+  if (dropsNullModel === false) {
+    return aggregate;
+  }
+
+  const { rows, warnings: recoveryWarnings } = await collectRecoveredRows({ cache: recoveredFileCache });
+  warnings.push(...recoveryWarnings);
+  if (rows.length === 0) {
+    return aggregate;
+  }
+
+  if (agents.claude) {
+    agents.claude = mergeRecoveredRows(agents.claude, rows, "claude");
+  }
+  return mergeRecoveredRows(aggregate, rows, "all");
+}
+
 async function fetchUsageData() {
   const startedAt = Date.now();
   const aggregateRaw = await runCcusage(["daily", "--breakdown"]);
-  const aggregate = normalizeReport(aggregateRaw, "all");
+  let aggregate = normalizeReport(aggregateRaw, "all");
   const activeAgents = discoverAgents(aggregateRaw);
   const warnings = [];
   const agents = {};
@@ -242,12 +301,14 @@ async function fetchUsageData() {
     }
   });
 
+  aggregate = await recoverSkippedUsage(aggregate, agents, warnings);
+
   return {
     aggregate,
     agents,
     warnings,
     durationMs: Date.now() - startedAt,
-    sourceCommand: "npx ccusage@latest daily --breakdown --json",
+    sourceCommand: `npx ${CCUSAGE_SPEC} daily --breakdown --json`,
   };
 }
 

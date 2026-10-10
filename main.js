@@ -107,6 +107,7 @@ function schedulePreResetSamples(rateLimits) {
   };
 
   for (const providerId of ["claude", "codex"]) {
+    if (rateLimits?.[providerId]?.cached) continue;
     const sessionResetAt = rateLimits?.[providerId]?.windows?.session?.resetsAt;
     const sessionResetTime = new Date(sessionResetAt).getTime();
     if (
