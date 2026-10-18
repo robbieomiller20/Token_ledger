@@ -9,12 +9,13 @@ const {
 const MAX_OUTPUT_BYTES = 20 * 1024 * 1024;
 const COMMAND_TIMEOUT_MS = 2 * 60 * 1000;
 
-// Pinned deliberately. ccusage 20.0.21 aborts the whole run with
+// Pinned deliberately, so a bad upstream release cannot break the dashboard
+// overnight; bump it by hand after checking. 20.0.21 aborted the whole run with
 // `no such table: gen_metadata` when any .db in
-// ~/.gemini/antigravity/conversations/ has no tables, which an abandoned
-// Antigravity conversation leaves behind. 20.0.20 is the last good release, so
-// `@latest` is not safe to track until that regression is fixed upstream.
-const CCUSAGE_SPEC = "ccusage@20.0.20";
+// ~/.gemini/antigravity/conversations/ had no tables. 20.0.35 fixes that, and
+// unlike 20.0.20 it reads the .jsonl.zst files Codex compresses older
+// rollouts into - 20.0.20 saw only the still-uncompressed recent days.
+const CCUSAGE_SPEC = "ccusage@20.0.35";
 
 function stripAnsi(value) {
   return value.replace(
@@ -231,11 +232,11 @@ function discoverAgents(report) {
   return [...agents].sort();
 }
 
-// ccusage (through v20.0.20) cannot deserialize records whose
-// usage.iterations[] carries "model": null, and drops them silently - which
-// hides essentially all claude-fable-5-1 usage. We read those records
-// ourselves, but only while ccusage still has the bug: probe once per launch so
-// a fixed ccusage turns recovery off instead of double-counting.
+// ccusage 20.0.20 could not deserialize records whose usage.iterations[]
+// carries "model": null, and dropped them silently - which hid essentially all
+// claude-fable-5-1 usage. 20.0.35 counts them, but the probe stays: it runs
+// once per launch and turns recovery on only if the pinned ccusage drops them,
+// so a pin change can never double-count or lose Fable usage.
 const recoveredFileCache = new Map();
 let dropsNullModelProbe = null;
 

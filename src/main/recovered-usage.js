@@ -1,9 +1,10 @@
 // Recovers Claude Code usage records that ccusage silently drops.
 //
-// ccusage (through v20.0.20) deserializes message.usage.iterations[] with a
-// non-nullable `model` field. Claude Code emits "model": null there for
-// claude-fable-5-1, so every such line fails to parse and is skipped without a
-// warning - taking the whole model's usage off the dashboard with it.
+// ccusage 20.0.20 deserializes message.usage.iterations[] with a non-nullable
+// `model` field. Claude Code emits "model": null there for claude-fable-5-1, so
+// every such line fails to parse and is skipped without a warning - taking the
+// whole model's usage off the dashboard with it. 20.0.35 fixed this, so the
+// probe below keeps recovery switched off there; it stays as a safety net.
 //
 // This module re-reads the same transcripts, keeps only the records ccusage
 // drops, and returns them shaped like ccusage's own normalized daily rows.

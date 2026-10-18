@@ -27,11 +27,13 @@ npm run shortcut
 
 Re-run this command if you move the project folder.
 
-The app runs `npx --yes ccusage@20.0.20 daily --json` and the matching
+The app runs `npx --yes ccusage@20.0.35 daily --json` and the matching
 agent-specific daily commands. Node.js and `npx` must be available on `PATH`.
-The version is pinned because ccusage 20.0.21 fails outright on an empty
-Antigravity conversation database; see the `CCUSAGE_SPEC` comment in
-`src/main/ccusage.js` before bumping it.
+The version is pinned so an upstream regression cannot break the dashboard
+(20.0.21 failed outright on an empty Antigravity conversation database). Older
+pins also miss Codex history, because Codex compresses older rollouts to
+`.jsonl.zst`. See the `CCUSAGE_SPEC` comment in `src/main/ccusage.js` before
+bumping it.
 
 Claude plan limits use the existing CLI sign-in in `~/.claude/.credentials.json`.
 No active terminal session or status-line setup is needed. Codex uses
