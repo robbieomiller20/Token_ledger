@@ -13,68 +13,17 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
+// ccusage excludes these records entirely, so there is no cost to inherit - we
+// have to price them ourselves, at the published rates in claude-pricing.js.
+const { PRICING, costOf } = require("./claude-pricing");
+
 // Cheap substring gate so we only JSON.parse lines that could possibly match.
 const POISON_HINT = '"model":null';
-
-// USD per million tokens. ccusage excludes these records entirely, so there is
-// no cost to inherit - we have to price them ourselves. Anthropic's standard
-// cache multipliers are 0.1x input to read, 1.25x to write a 5m entry and 2x
-// for a 1h entry; Fable 5.1 is the exception, with a published $0.25 read.
-// If Anthropic changes a rate, edit it here.
-function rates(input, output, overrides = {}) {
-  return {
-    input,
-    output,
-    cacheRead: input * 0.1,
-    cacheWrite5m: input * 1.25,
-    cacheWrite1h: input * 2,
-    ...overrides,
-  };
-}
-
-const PRICING = {
-  "claude-fable-5-1": rates(10, 50, { cacheRead: 0.25 }),
-  "claude-fable-5": rates(10, 50),
-  "claude-mythos-5-1": rates(10, 50, { cacheRead: 0.25 }),
-  "claude-opus-5": rates(5, 25),
-  "claude-opus-4-8": rates(5, 25),
-  "claude-opus-4-7": rates(5, 25),
-  "claude-sonnet-5": rates(2, 10),
-  "claude-sonnet-4-6": rates(3, 15),
-  "claude-haiku-4-5": rates(1, 5),
-};
-
-// Transcripts sometimes carry a dated snapshot id (claude-haiku-4-5-20251001).
-function lookupRates(modelName) {
-  return PRICING[modelName] || PRICING[modelName.replace(/-d{8}$/, "")] || null;
-}
 
 // Money only needs so many digits; rounding keeps float noise from accumulating
 // across thousands of records.
 function round(value) {
   return Math.round(value * 1e6) / 1e6;
-}
-
-function costOf(modelName, usage) {
-  const rate = lookupRates(modelName);
-  if (!rate) {
-    return null;
-  }
-  const creation = usage.cache_creation || {};
-  const write1h = number(creation.ephemeral_1h_input_tokens);
-  // Without a breakdown, assume the cheaper 5m entry rather than overcharging.
-  const write5m = creation.ephemeral_5m_input_tokens === undefined && !creation.ephemeral_1h_input_tokens
-    ? number(usage.cache_creation_input_tokens)
-    : number(creation.ephemeral_5m_input_tokens);
-
-  return (
-    (number(usage.input_tokens) * rate.input +
-      number(usage.output_tokens) * rate.output +
-      number(usage.cache_read_input_tokens) * rate.cacheRead +
-      write1h * rate.cacheWrite1h +
-      write5m * rate.cacheWrite5m) /
-    1e6
-  );
 }
 
 function defaultConfigDirs() {
@@ -295,7 +244,7 @@ async function collectRecoveredRows({ configDirs = defaultConfigDirs(), cache = 
 
   for (const modelName of [...unpriced].sort()) {
     warnings.push(
-      `No price on file for ${modelName}; its recovered tokens are shown but its cost is counted as $0. Add it to PRICING in src/main/recovered-usage.js.`,
+      `No price on file for ${modelName}; its recovered tokens are shown but its cost is counted as $0. Add it to PRICING in src/main/claude-pricing.js.`,
     );
   }
 
@@ -434,6 +383,8 @@ module.exports = {
   probeCcusageDropsNullModel,
   mergeRecoveredRows,
   collectRecoveredRows,
+  defaultConfigDirs,
   isSkippedByCcusage,
+  listTranscripts,
   localDateKey,
 };

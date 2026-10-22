@@ -2,6 +2,7 @@ const path = require("node:path");
 const fs = require("node:fs/promises");
 const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const { fetchUsageData } = require("./src/main/ccusage");
+const { createClaudeUsageReader } = require("./src/main/claude-transcript-usage");
 const { fetchRateLimits } = require("./src/main/rate-limits");
 const { SessionTracker } = require("./src/main/session-tracker");
 
@@ -362,6 +363,7 @@ app.whenReady().then(async () => {
     weeklyCsvPath: path.join(__dirname, "data", "completed-seven-day-sessions.csv"),
     xlsxPath: path.join(__dirname, "data", "completed-five-hour-sessions.xlsx"),
     weeklyXlsxPath: path.join(__dirname, "data", "completed-seven-day-sessions.xlsx"),
+    usageReaders: { claude: createClaudeUsageReader() },
   });
   await sessionTracker.init();
   currentTheme = await loadTheme();

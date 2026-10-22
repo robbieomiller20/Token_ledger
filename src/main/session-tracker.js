@@ -99,6 +99,28 @@ function sameResetWindow(left, right) {
   );
 }
 
+// Where a window's usage starts. A window that began at the previous one's
+// reset carries on from that record's closing checkpoint, the same point its
+// 7-day percentage is carried over from; any other window starts at its first
+// sample.
+function inferUsageWindowStart(entry, previous) {
+  if (previous && sameResetWindow(previous.completedAt, entry.startedAt)) {
+    return previous.usageWindowEnd || previous.closingCheckpointAt || previous.completedAt;
+  }
+  return entry.firstObservedAt;
+}
+
+function latestBefore(records, providerId, startedAt) {
+  const startTime = parseTime(startedAt);
+  return records
+    .filter(
+      (record) =>
+        record.provider === providerId &&
+        parseTime(record.completedAt) <= startTime + RESET_TIME_TOLERANCE_MS,
+    )
+    .sort((left, right) => parseTime(right.completedAt) - parseTime(left.completedAt))[0];
+}
+
 function calculateResetFraction(previousAt, currentAt, resetAt) {
   const previous = parseTime(previousAt);
   const current = parseTime(currentAt);
@@ -242,6 +264,7 @@ function buildCsv(records) {
     "sample_count",
     "tracking_interval_minutes",
     "completion_reason",
+    ...USAGE_SOURCE_HEADERS,
   ];
   const rows = records.map((record) => [
     record.provider,
@@ -268,12 +291,31 @@ function buildCsv(records) {
     record.sampleCount,
     record.trackingIntervalMinutes,
     record.completionReason,
+    ...usageSourceCells(record),
   ]);
 
   return [headers, ...rows]
     .map((row) => row.map(quoteCsv).join(","))
     .join("\r\n")
     .concat("\r\n");
+}
+
+const USAGE_SOURCE_HEADERS = [
+  "usage_source",
+  "usage_window_start",
+  "usage_window_end",
+  "unpriced_models",
+];
+
+// Records written before transcript usage existed all came from diffing
+// ccusage's totals.
+function usageSourceCells(record) {
+  return [
+    record.usageSource || "ccusage-totals",
+    record.usageWindowStart,
+    record.usageWindowEnd,
+    (record.unpricedModels || []).join(" "),
+  ];
 }
 
 function buildWeeklyCsv(records) {
@@ -300,6 +342,7 @@ function buildWeeklyCsv(records) {
     "sample_count",
     "tracking_interval_minutes",
     "completion_reason",
+    ...USAGE_SOURCE_HEADERS,
   ];
   const rows = records.map((record) => [
     record.provider,
@@ -324,6 +367,7 @@ function buildWeeklyCsv(records) {
     record.sampleCount,
     record.trackingIntervalMinutes,
     record.completionReason,
+    ...usageSourceCells(record),
   ]);
 
   return [headers, ...rows]
@@ -331,6 +375,13 @@ function buildWeeklyCsv(records) {
     .join("\r\n")
     .concat("\r\n");
 }
+
+const USAGE_SOURCE_XLSX_COLUMNS = [
+  { header: "Usage source", key: "usageSource", type: "text", width: 16 },
+  { header: "Usage from", key: "usageWindowStart", type: "datetime", width: 21 },
+  { header: "Usage to", key: "usageWindowEnd", type: "datetime", width: 21 },
+  { header: "Unpriced models", key: "unpricedModels", type: "text", width: 20 },
+];
 
 const FIVE_HOUR_XLSX_COLUMNS = [
   { header: "Provider", key: "provider", type: "text", width: 14 },
@@ -387,6 +438,7 @@ const FIVE_HOUR_XLSX_COLUMNS = [
     width: 16,
   },
   { header: "Completion reason", key: "completionReason", type: "text", width: 24 },
+  ...USAGE_SOURCE_XLSX_COLUMNS,
 ];
 
 const WEEKLY_XLSX_COLUMNS = [
@@ -432,11 +484,14 @@ const WEEKLY_XLSX_COLUMNS = [
     width: 16,
   },
   { header: "Completion reason", key: "completionReason", type: "text", width: 24 },
+  ...USAGE_SOURCE_XLSX_COLUMNS,
 ];
 
 function flattenUsage(record) {
   return {
     ...record,
+    usageSource: record.usageSource || "ccusage-totals",
+    unpricedModels: (record.unpricedModels || []).join(" "),
     inputTokens: Math.round(record.usage.inputTokens),
     outputTokens: Math.round(record.usage.outputTokens),
     cacheCreationTokens: Math.round(record.usage.cacheCreationTokens),
@@ -513,6 +568,7 @@ function removeResetTimeOnlySessions(state) {
 
     active.startedAt = earliest.startedAt;
     active.firstObservedAt = earliest.firstObservedAt;
+    active.usageWindowStart = earliest.usageWindowStart || earliest.firstObservedAt;
     active.startTotals = subtractTotals(active.startTotals, totalFalseUsage);
     active.maxSessionPercent = Math.max(
       Number(active.maxSessionPercent) || 0,
@@ -531,9 +587,33 @@ function removeResetTimeOnlySessions(state) {
   }
 }
 
+// Actives saved before usage windows existed: infer where each one's usage
+// starts from the record it continues, if any.
+function addMissingUsageWindowStarts(state) {
+  for (const providerId of ["claude", "codex"]) {
+    const provider = state.providers[providerId];
+    for (const [active, records] of [
+      [provider.active, state.completedSessions],
+      [provider.weeklyActive, state.completedWeeklySessions],
+    ]) {
+      if (active && !active.usageWindowStart) {
+        active.usageWindowStart = inferUsageWindowStart(
+          active,
+          latestBefore(records, providerId, active.startedAt),
+        );
+      }
+    }
+  }
+}
+
 class SessionTracker {
-  constructor({ statePath, csvPath, weeklyCsvPath, xlsxPath, weeklyXlsxPath }) {
+  // usageReaders maps a provider to an object whose usageBetween(windows)
+  // returns exact totals per window; providers without one fall back to
+  // diffing ccusage's all-time totals.
+  constructor({ statePath, csvPath, weeklyCsvPath, xlsxPath, weeklyXlsxPath, usageReaders = {} }) {
     this.statePath = statePath;
+    this.usageReaders = usageReaders;
+    this.pendingUsage = [];
     this.csvPath = csvPath;
     this.weeklyCsvPath =
       weeklyCsvPath || replaceExtension(csvPath, "-seven-day.csv");
@@ -566,6 +646,7 @@ class SessionTracker {
           : [],
       };
       removeResetTimeOnlySessions(this.state);
+      addMissingUsageWindowStarts(this.state);
     } catch (error) {
       if (error.code !== "ENOENT") {
         throw error;
@@ -691,6 +772,7 @@ class SessionTracker {
       weeklyEndPercent: sample.weeklyPercent,
       weeklyUsageAddedPercent: options.weeklyUsageAddedPercent || 0,
       weeklyResetOccurred: Boolean(options.weeklyResetOccurred),
+      usageWindowStart: options.usageWindowStart || sample.sampledAt,
       startTotals: normalizeTotals(options.startTotals || sample.totals),
       lastTotals: normalizeTotals(sample.totals),
       lastSampleSource: sample.source,
@@ -794,9 +876,11 @@ class SessionTracker {
       sampleCount: active.sampleCount,
       trackingIntervalMinutes: this.state.settings.intervalMinutes,
       completionReason: reason,
+      ...this.usageWindow(active, checkpoint?.sampledAt || resetAt),
     };
 
     this.state.completedSessions.push(record);
+    this.queueTranscriptUsage(record);
 
     const currentWindowStartedAt = inferWindowStart(sample.sessionResetAt);
     const currentWindowStartTime = parseTime(currentWindowStartedAt);
@@ -818,8 +902,54 @@ class SessionTracker {
       weeklyResetOccurred: nextWindowWasAlreadyRunning
         ? false
         : weeklySplit.weeklyResetOccurred,
+      usageWindowStart: nextWindowWasAlreadyRunning
+        ? sample.sampledAt
+        : record.usageWindowEnd,
       startTotals: nextWindowWasAlreadyRunning ? sample.totals : totalsAtReset,
     });
+  }
+
+  usageWindow(active, endAt) {
+    return {
+      usageSource: "ccusage-totals",
+      usageWindowStart: active.usageWindowStart || active.firstObservedAt,
+      usageWindowEnd: endAt,
+      unpricedModels: [],
+    };
+  }
+
+  queueTranscriptUsage(record) {
+    if (this.usageReaders[record.provider]) {
+      this.pendingUsage.push(record);
+    }
+  }
+
+  // Replaces the totals-diff usage on records completed by this sample with
+  // exact per-window sums. A reader failure keeps the diff, labelled as such.
+  async applyTranscriptUsage() {
+    const pending = this.pendingUsage;
+    this.pendingUsage = [];
+    for (const [providerId, reader] of Object.entries(this.usageReaders)) {
+      const records = pending.filter((record) => record.provider === providerId);
+      if (!records.length) {
+        continue;
+      }
+      try {
+        const results = await reader.usageBetween(
+          records.map((record) => ({
+            from: record.usageWindowStart,
+            to: record.usageWindowEnd,
+          })),
+        );
+        records.forEach((record, index) => {
+          record.usage = normalizeTotals(results[index]);
+          record.usageSource = "transcripts";
+          record.unpricedModels = results[index].unpricedModels || [];
+        });
+      } catch (error) {
+        console.error(`Could not read ${providerId} transcript usage:`, error);
+      }
+    }
   }
 
   updateActive(active, sample) {
@@ -891,6 +1021,7 @@ class SessionTracker {
           : options.startPercent,
       lastPercent: sample.weeklyPercent,
       maxPercent: sample.weeklyPercent,
+      usageWindowStart: options.usageWindowStart || sample.sampledAt,
       startTotals: normalizeTotals(options.startTotals || sample.totals),
       lastTotals: normalizeTotals(sample.totals),
       lastSampleSource: sample.source,
@@ -975,9 +1106,11 @@ class SessionTracker {
       sampleCount: active.sampleCount,
       trackingIntervalMinutes: this.state.settings.intervalMinutes,
       completionReason: reason,
+      ...this.usageWindow(active, checkpoint?.sampledAt || resetAt),
     };
 
     this.state.completedWeeklySessions.push(record);
+    this.queueTranscriptUsage(record);
 
     const currentWindowStartedAt = inferWeeklyWindowStart(sample.weeklyResetAt);
     const currentWindowStartTime = parseTime(currentWindowStartedAt);
@@ -1000,6 +1133,9 @@ class SessionTracker {
     return this.makeWeeklyActive(providerId, sample, {
       startedAt: nextWindowCanUseResetBoundary ? currentWindowStartedAt : resetAt,
       startPercent: nextWindowCanUseResetBoundary ? 0 : sample.weeklyPercent,
+      usageWindowStart: nextWindowCanUseResetBoundary
+        ? record.usageWindowEnd
+        : sample.sampledAt,
       startTotals: nextWindowCanUseResetBoundary ? totalsAtReset : sample.totals,
     });
   }
@@ -1180,6 +1316,7 @@ class SessionTracker {
       checkpointTargets,
       checkpointProviders,
     );
+    await this.applyTranscriptUsage();
     this.state.lastCheckAt = sampledAt;
     if (source === "app-close") {
       this.state.lastAppClosedAt = sampledAt;
@@ -1332,6 +1469,7 @@ module.exports = {
   buildCsv,
   buildWeeklyCsv,
   calculateResetFraction,
+  inferUsageWindowStart,
   interpolateTotals,
   subtractTotals,
 };

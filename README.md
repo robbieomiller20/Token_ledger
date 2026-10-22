@@ -62,3 +62,19 @@ Moving `reset_at` estimates only reschedule that checkpoint; a completed
 five-hour record is created when the provider's utilization percentage drops.
 Seven-day records use the same drop signal, with a reset-time-only fallback for
 idle weekly windows.
+
+Claude session usage is summed straight from the Claude Code transcripts, by
+each record's own timestamp, over the window recorded in `usage_window_start`
+and `usage_window_end`. It is priced at Anthropic's published API rates in
+`src/main/claude-pricing.js`, with advisor calls billed to the advisor's model.
+Diffing ccusage's all-time totals instead let Claude Code's transcript cleanup
+zero a session, and let a ccusage change dump old usage into whichever session
+was open. Codex sessions still use that diff, and so does a Claude record whose
+transcripts could not be read; `usage_source` says which. Models missing from
+the price table are listed in `unpriced_models` and count as $0.
+
+To recompute older Claude rows, close Token Ledger and run
+`node scripts/recompute-session-usage.js --since YYYY-MM-DD`, then repeat with
+`--apply` to save. The state file is backed up first. Choose a date the
+transcripts still cover: Claude Code deletes old ones, and a window with none
+left would be rewritten as zero.

@@ -40,16 +40,141 @@ function usage(claude, codex = totals(40, 1)) {
   };
 }
 
-async function createTracker(name) {
-  const directory = await fs.mkdtemp(
-    path.join(os.tmpdir(), `token-ledger-${name}-`),
-  );
+async function createTracker(name, options = {}) {
+  const directory =
+    options.directory ||
+    (await fs.mkdtemp(path.join(os.tmpdir(), `token-ledger-${name}-`)));
   const tracker = new SessionTracker({
     statePath: path.join(directory, "state.json"),
     csvPath: path.join(directory, "completed.csv"),
+    usageReaders: options.usageReaders,
   });
   await tracker.init();
   return { directory, tracker };
+}
+
+// Stands in for the transcript reader: answers each window with its length in
+// minutes as the token count, so tests can tell which window got which totals.
+function fakeReader({ fail = false } = {}) {
+  const calls = [];
+  return {
+    calls,
+    async usageBetween(windows) {
+      calls.push(windows);
+      if (fail) {
+        throw new Error("transcripts unavailable");
+      }
+      return windows.map(({ from, to }) => {
+        const minutes = (Date.parse(to) - Date.parse(from)) / 60000;
+        return {
+          inputTokens: 0,
+          outputTokens: minutes,
+          cacheCreationTokens: 0,
+          cacheReadTokens: 0,
+          totalTokens: minutes,
+          costUSD: minutes / 100,
+          unpricedModels: ["claude-unknown"],
+        };
+      });
+    },
+  };
+}
+
+// The pre-reset scenario, with ccusage's all-time totals shrinking before the
+// checkpoint, as they do when Claude Code deletes old transcripts.
+async function runShrinkingTotalsScenario(tracker) {
+  const sessionReset = "2026-06-20T12:00:00.000Z";
+  await tracker.recordSample({
+    sampledAt: "2026-06-20T10:00:00.000Z",
+    rateLimits: { claude: provider("claude", 40, sessionReset, 30, sessionReset) },
+    usageData: usage(totals(1000, 10)),
+  });
+  await tracker.recordSample({
+    sampledAt: "2026-06-20T11:59:30.000Z",
+    source: "pre-reset",
+    rateLimits: { claude: provider("claude", 90, sessionReset, 36, sessionReset) },
+    usageData: usage(totals(400, 4)),
+  });
+  return tracker.recordSample({
+    sampledAt: "2026-06-20T12:05:00.000Z",
+    rateLimits: {
+      claude: provider(
+        "claude",
+        5,
+        "2026-06-20T17:00:00.000Z",
+        1,
+        "2026-06-27T12:00:00.000Z",
+      ),
+    },
+    usageData: usage(totals(500, 5)),
+  });
+}
+
+async function testTranscriptUsageReplacesTotalsDiff() {
+  const reader = fakeReader();
+  const { directory, tracker } = await createTracker("transcript-usage", {
+    usageReaders: { claude: reader },
+  });
+  const result = await runShrinkingTotalsScenario(tracker);
+
+  // Both windows that closed in this sample go to the reader in one call.
+  assert.deepEqual(reader.calls, [
+    [
+      { from: "2026-06-20T10:00:00.000Z", to: "2026-06-20T11:59:30.000Z" },
+      { from: "2026-06-20T10:00:00.000Z", to: "2026-06-20T12:00:00.000Z" },
+    ],
+  ]);
+
+  const completed = result.completedSessions[0];
+  assert.equal(completed.usageSource, "transcripts");
+  assert.equal(completed.usage.totalTokens, 119.5);
+  assert.equal(completed.usage.costUSD, 1.195);
+  assert.deepEqual(completed.unpricedModels, ["claude-unknown"]);
+  const weekly = result.completedWeeklySessions[0];
+  assert.equal(weekly.usageSource, "transcripts");
+  assert.equal(weekly.usage.totalTokens, 120);
+
+  // The next window's usage starts where this one's ended.
+  assert.equal(
+    tracker.state.providers.claude.active.usageWindowStart,
+    "2026-06-20T11:59:30.000Z",
+  );
+
+  const csv = await fs.readFile(path.join(directory, "completed.csv"), "utf8");
+  assert.match(csv.split("\r\n")[0], /,usage_source,usage_window_start,usage_window_end,unpriced_models$/);
+  assert.match(csv.split("\r\n")[1], /,transcripts,2026-06-20T10:00:00\.000Z,2026-06-20T11:59:30\.000Z,claude-unknown$/);
+}
+
+async function testTranscriptReaderFailureKeepsTotalsDiff() {
+  const { tracker } = await createTracker("transcript-failure", {
+    usageReaders: { claude: fakeReader({ fail: true }) },
+  });
+  const originalError = console.error;
+  console.error = () => {};
+  let result;
+  try {
+    result = await runShrinkingTotalsScenario(tracker);
+  } finally {
+    console.error = originalError;
+  }
+
+  const completed = result.completedSessions[0];
+  assert.equal(completed.usageSource, "ccusage-totals");
+  // The shrinking totals are exactly what the old diff cannot survive.
+  assert.equal(completed.usage.totalTokens, 0);
+}
+
+async function testSavedActiveGetsUsageWindowStart() {
+  const { directory, tracker } = await createTracker("window-migration");
+  await runShrinkingTotalsScenario(tracker);
+  delete tracker.state.providers.claude.active.usageWindowStart;
+  await tracker.save();
+
+  const { tracker: reloaded } = await createTracker("window-migration", { directory });
+  assert.equal(
+    reloaded.state.providers.claude.active.usageWindowStart,
+    "2026-06-20T11:59:30.000Z",
+  );
 }
 
 async function testPreResetCheckpoint() {
@@ -518,6 +643,9 @@ async function main() {
   await testFallbackInterpolation();
   await testMovingResetEstimateDoesNotComplete();
   await testWeeklyPreResetCheckpoint();
+  await testTranscriptUsageReplacesTotalsDiff();
+  await testTranscriptReaderFailureKeepsTotalsDiff();
+  await testSavedActiveGetsUsageWindowStart();
   console.log("Session tracker checkpoint tests passed.");
 }
 
